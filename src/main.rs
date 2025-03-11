@@ -2,7 +2,9 @@ use std::io::Write;
 
 use lexer::next_token;
 
+pub mod ast;
 pub mod lexer;
+pub mod parser;
 pub mod tokens;
 
 enum ReplModes {
@@ -22,7 +24,7 @@ fn title(titles: &[&str]) {
 
     let empty_line = " ".repeat(max_len);
 
-    println!("#  {}  #", "#".repeat(max_len));
+    println!("###{}###", "#".repeat(max_len));
     println!("#  {}  #", empty_line);
     titles.iter().for_each(|title| {
         let title = title.to_string();
@@ -30,7 +32,7 @@ fn title(titles: &[&str]) {
         println!("#  {}{}  #", title, padding)
     });
     println!("#  {}  #", empty_line);
-    println!("#  {}  #", "#".repeat(max_len));
+    println!("###{}###", "#".repeat(max_len));
 }
 
 fn main() {
@@ -59,6 +61,10 @@ fn main() {
             }
             ":normal" => {
                 mode = ReplModes::Normal;
+                continue;
+            }
+            ":alba" => {
+                println!("💐");
                 continue;
             }
             ":help" => {
