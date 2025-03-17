@@ -13,12 +13,21 @@ pub enum Statement {
 
 pub enum Expression {
     Identifier(Identifier),
+    IntegerLiteral(IntegerLiteral),
+    Prefix(PrefixExpression),
+    Infix(InfixExpression),
     Empty,
 }
 
 impl Node for Expression {
     fn token_literal(&self) -> String {
-        todo!();
+        match self {
+            Expression::Identifier(identifier) => identifier.token_literal(),
+            Expression::IntegerLiteral(integer_literal) => integer_literal.token_literal(),
+            Expression::Prefix(prefix_expression) => prefix_expression.token_literal(),
+            Expression::Infix(infix_expression) => infix_expression.token_literal(),
+            Expression::Empty => panic!("Empty expression should not be used"),
+        }
     }
 }
 
@@ -26,7 +35,10 @@ impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expression::Identifier(identifier) => identifier.fmt(f),
-            Expression::Empty => write!(f, ""),
+            Expression::IntegerLiteral(integer_literal) => integer_literal.fmt(f),
+            Expression::Prefix(prefix_expression) => prefix_expression.fmt(f),
+            Expression::Infix(infix_expression) => infix_expression.fmt(f),
+            Expression::Empty => panic!("Empty expression should not be used"),
         }
     }
 }
@@ -101,23 +113,6 @@ impl fmt::Display for LetStatement {
     }
 }
 
-pub struct Identifier {
-    pub token: Token,
-    pub value: String,
-}
-
-impl Node for Identifier {
-    fn token_literal(&self) -> String {
-        return self.token.literal.clone();
-    }
-}
-
-impl fmt::Display for Identifier {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value)
-    }
-}
-
 pub struct ReturnStatement {
     pub token: Token,
     pub value: Expression,
@@ -140,7 +135,7 @@ impl fmt::Display for ReturnStatement {
 
 pub struct ExpressionStatement {
     pub token: Token,
-    pub expression: Expression,
+    pub expression: Option<Expression>,
 }
 
 impl Node for ExpressionStatement {
@@ -151,7 +146,94 @@ impl Node for ExpressionStatement {
 
 impl fmt::Display for ExpressionStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.expression.fmt(f)
+        if let Some(expression) = &self.expression {
+            expression.fmt(f)
+        } else {
+            write!(f, "")
+        }
+    }
+}
+
+pub struct Identifier {
+    pub token: Token,
+    pub value: String,
+}
+
+impl Node for Identifier {
+    fn token_literal(&self) -> String {
+        return self.token.literal.clone();
+    }
+}
+
+impl fmt::Display for Identifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
+
+pub struct IntegerLiteral {
+    pub token: Token,
+    pub value: i64,
+}
+
+impl Node for IntegerLiteral {
+    fn token_literal(&self) -> String {
+        return self.token.literal.clone();
+    }
+}
+
+impl fmt::Display for IntegerLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
+
+pub struct PrefixExpression {
+    pub token: Token,
+    pub operator: String,
+    pub right: Box<Option<Expression>>,
+}
+
+impl Node for PrefixExpression {
+    fn token_literal(&self) -> String {
+        return self.token.literal.clone();
+    }
+}
+
+impl fmt::Display for PrefixExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.right.as_ref() {
+            Some(expression) => write!(f, "({}{})", self.operator, expression),
+            None => write!(f, "({}, error: expected expression)", self.operator),
+        }
+    }
+}
+
+pub struct InfixExpression {
+    pub token: Token,
+    pub left: Box<Expression>,
+    pub operator: String,
+    pub right: Box<Option<Expression>>,
+}
+
+impl Node for InfixExpression {
+    fn token_literal(&self) -> String {
+        return self.token.literal.clone();
+    }
+}
+
+impl fmt::Display for InfixExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.right.as_ref() {
+            Some(right) => write!(f, "({} {} {})", self.left, self.operator, right),
+            None => {
+                write!(
+                    f,
+                    "({} {} error: expected right expression)",
+                    self.left, self.operator
+                )
+            }
+        }
     }
 }
 
