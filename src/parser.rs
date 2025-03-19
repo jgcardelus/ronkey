@@ -623,6 +623,73 @@ mod test {
             });
     }
 
+    #[test]
+    fn test_complex_precedences() {
+        let tests = [
+            ("!-a", "(!(-a))"),
+            ("a + b + c", "((a + b) + c)"),
+            ("a + b - c", "((a + b) - c)"),
+            ("a * b * c", "((a * b) * c)"),
+            ("a * b / c", "((a * b) / c)"),
+            ("a + b / c", "(a + (b / c))"),
+            ("a + b * c + d / e - f", "(((a + (b * c)) + (d / e)) - f)"),
+            ("5 > 4 == 3 < 4", "((5 > 4) == (3 < 4))"),
+            ("5 < 4 != 3 > 4", "((5 < 4) != (3 > 4))"),
+            (
+                "3 + 4 * 5 == 3 * 1 + 4 * 5",
+                "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
+            ),
+            (
+                "3 + 4 * 5 == 3 * 1 + 4 * 5",
+                "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
+            ),
+        ];
+
+        tests.iter().for_each(|(test, expected)| {
+            let mut lexer = lexer::new(test);
+            let mut parser = new(&mut lexer);
+
+            let program = parse_program(&mut parser);
+            check_parser_errors(&parser);
+
+            if program.statements.len() != 1 {
+                panic!(
+                    "program.statements does not contain 1 statement, got: {}",
+                    program.statements.len()
+                );
+            }
+
+            assert_eq!(
+                program.statements[0].to_string(),
+                *expected,
+                "Expected: {}, got: {}",
+                expected,
+                program.statements[0]
+            );
+        });
+    }
+
+    fn test_identifier(expression: &Expression, expected: &str) {
+        let identifier = match expression {
+            Expression::Identifier(identifier) => identifier,
+            _ => panic!("Expected identifier, got: {:?}", expression.token_literal()),
+        };
+
+        assert_eq!(
+            identifier.value, expected,
+            "Expected value to be {}, got {}",
+            expected, identifier.value
+        );
+
+        assert_eq!(
+            identifier.token_literal(),
+            expected,
+            "Expected token_literal to be {}, got {}",
+            expected,
+            identifier.token_literal()
+        );
+    }
+
     fn test_integer_literal(expression: &Expression, expected_value: i64) {
         let integer_literal = match expression {
             Expression::IntegerLiteral(integer_literal) => integer_literal,
