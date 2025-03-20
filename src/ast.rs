@@ -14,6 +14,8 @@ pub enum Statement {
 pub enum Expression {
     Identifier(Identifier),
     IntegerLiteral(IntegerLiteral),
+    BooleanLiteral(BooleanLiteral),
+    If(IfExpression),
     Prefix(PrefixExpression),
     Infix(InfixExpression),
     Empty,
@@ -24,6 +26,8 @@ impl Node for Expression {
         match self {
             Expression::Identifier(identifier) => identifier.token_literal(),
             Expression::IntegerLiteral(integer_literal) => integer_literal.token_literal(),
+            Expression::BooleanLiteral(boolean_literal) => boolean_literal.token_literal(),
+            Expression::If(if_expression) => if_expression.token_literal(),
             Expression::Prefix(prefix_expression) => prefix_expression.token_literal(),
             Expression::Infix(infix_expression) => infix_expression.token_literal(),
             Expression::Empty => panic!("Empty expression should not be used"),
@@ -36,6 +40,8 @@ impl fmt::Display for Expression {
         match self {
             Expression::Identifier(identifier) => identifier.fmt(f),
             Expression::IntegerLiteral(integer_literal) => integer_literal.fmt(f),
+            Expression::BooleanLiteral(boolean_literal) => boolean_literal.fmt(f),
+            Expression::If(if_expression) => if_expression.fmt(f),
             Expression::Prefix(prefix_expression) => prefix_expression.fmt(f),
             Expression::Infix(infix_expression) => infix_expression.fmt(f),
             Expression::Empty => panic!("Empty expression should not be used"),
@@ -78,6 +84,34 @@ impl Node for Program {
 }
 
 impl fmt::Display for Program {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.statements
+            .iter()
+            .fold(fmt::Result::Ok(()), |acc, statement| {
+                match statement.fmt(f) {
+                    fmt::Result::Ok(()) => acc,
+                    fmt::Result::Err(err) => fmt::Result::Err(err),
+                }
+            })
+    }
+}
+
+pub struct BlockStatement {
+    pub token: Token,
+    pub statements: Vec<Statement>,
+}
+
+impl Node for BlockStatement {
+    fn token_literal(&self) -> String {
+        if self.statements.len() > 0 {
+            return self.statements[0].token_literal();
+        } else {
+            return "".to_string();
+        }
+    }
+}
+
+impl fmt::Display for BlockStatement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.statements
             .iter()
@@ -188,6 +222,23 @@ impl fmt::Display for IntegerLiteral {
     }
 }
 
+pub struct BooleanLiteral {
+    pub token: Token,
+    pub value: bool,
+}
+
+impl Node for BooleanLiteral {
+    fn token_literal(&self) -> String {
+        return self.token.literal.clone();
+    }
+}
+
+impl fmt::Display for BooleanLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
+
 pub struct PrefixExpression {
     pub token: Token,
     pub operator: String,
@@ -234,6 +285,33 @@ impl fmt::Display for InfixExpression {
                 )
             }
         }
+    }
+}
+
+pub struct IfExpression {
+    pub token: Token,
+    pub condition: Box<Expression>,
+    pub consequence: Box<BlockStatement>,
+    pub alternative: Box<Option<BlockStatement>>,
+}
+
+impl Node for IfExpression {
+    fn token_literal(&self) -> String {
+        return self.token.literal.clone();
+    }
+}
+
+impl fmt::Display for IfExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "if ")?;
+        self.condition.fmt(f)?;
+        write!(f, " ")?;
+        self.consequence.fmt(f)?;
+        if let Some(alternative) = &*self.alternative {
+            write!(f, " else ")?;
+            alternative.fmt(f)?;
+        }
+        return fmt::Result::Ok(());
     }
 }
 
