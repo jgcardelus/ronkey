@@ -14,6 +14,11 @@ enum Precedence {
     Call,
 }
 
+enum InfixOption {
+    Some(Expression),
+    None(Expression),
+}
+
 impl Precedence {
     fn value(&self) -> i32 {
         match self {
@@ -78,7 +83,7 @@ pub fn parse_statement(parser: &mut Parser) -> Option<ast::Statement> {
 pub fn parse_let_statement(parser: &mut Parser) -> Option<ast::LetStatement> {
     let token = parser.current_token.clone();
 
-    if !assert_peek_token(parser, TokenType::Ident) {
+    if !assert_peek_token_and_next(parser, TokenType::Ident) {
         return None;
     }
 
@@ -87,7 +92,7 @@ pub fn parse_let_statement(parser: &mut Parser) -> Option<ast::LetStatement> {
         value: parser.current_token.literal.clone(),
     };
 
-    if !assert_peek_token(parser, TokenType::Assign) {
+    if !assert_peek_token_and_next(parser, TokenType::Assign) {
         return None;
     }
     eat_expression(parser);
@@ -136,12 +141,13 @@ fn parse_expression(parser: &mut Parser, precedence: Precedence) -> Option<Expre
     while parser.peek_token.token_type != TokenType::Semicolon
         && precedence.value() < peek_precedence(parser).value()
     {
-        if !has_parse_infix_function(&parser.peek_token.token_type) {
-            return Some(left_expression);
-        }
-
         next_token(parser);
-        let infix_expression = parse_infix_expression(parser, left_expression);
+
+        let infix_expression = match parse_infix(parser, left_expression) {
+            InfixOption::Some(infix_expression) => infix_expression,
+            InfixOption::None(left_expression) => return Some(left_expression),
+        };
+
         left_expression = infix_expression;
     }
 
@@ -159,12 +165,13 @@ fn parse_prefix(parser: &mut Parser) -> Option<Expression> {
         TokenType::False => Some(parse_boolean_literal(parser)),
         TokenType::Lparen => parse_grouped_expression(parser),
         TokenType::If => parse_if_expression(parser),
+        TokenType::Function => parse_function_literal(parser),
         _ => None,
     }
 }
 
-fn has_parse_infix_function(token_type: &TokenType) -> bool {
-    match token_type {
+fn parse_infix(parser: &mut Parser, left: Expression) -> InfixOption {
+    match parser.current_token.token_type {
         TokenType::Plus
         | TokenType::Minus
         | TokenType::Asterisk
@@ -172,9 +179,57 @@ fn has_parse_infix_function(token_type: &TokenType) -> bool {
         | TokenType::Less
         | TokenType::Greater
         | TokenType::Equals
-        | TokenType::NotEquals => true,
-        _ => false,
+        | TokenType::NotEquals => InfixOption::Some(parse_infix_expression(parser, left)),
+        TokenType::Lparen => parse_call_expression(parser, left),
+        _ => InfixOption::None(left),
     }
+}
+
+fn parse_call_expression(parser: &mut Parser, left: Expression) -> InfixOption {
+    let token = parser.current_token.clone();
+
+    let arguments = match parse_call_arguments(parser) {
+        Some(arguments) => arguments,
+        None => return InfixOption::None(left),
+    };
+
+    InfixOption::Some(Expression::Call(ast::CallExpression {
+        token,
+        function: Box::new(left),
+        arguments,
+    }))
+}
+
+fn parse_call_arguments(parser: &mut Parser) -> Option<Vec<Expression>> {
+    let mut arguments = vec![];
+
+    if parser.peek_token.token_type == TokenType::Rparen {
+        next_token(parser);
+        return Some(arguments);
+    }
+
+    next_token(parser);
+
+    match parse_expression(parser, Precedence::Lowest) {
+        Some(expression) => arguments.push(expression),
+        None => return None,
+    }
+
+    while parser.peek_token.token_type == TokenType::Comma {
+        next_token(parser);
+        next_token(parser);
+
+        match parse_expression(parser, Precedence::Lowest) {
+            Some(expression) => arguments.push(expression),
+            None => return None,
+        }
+    }
+
+    if !assert_peek_token_and_next(parser, TokenType::Rparen) {
+        return None;
+    }
+
+    return Some(arguments);
 }
 
 fn parse_infix_expression(parser: &mut Parser, left: Expression) -> Expression {
@@ -246,7 +301,7 @@ fn parse_grouped_expression(parser: &mut Parser) -> Option<Expression> {
 
     let expression = parse_expression(parser, Precedence::Lowest);
 
-    if !assert_peek_token(parser, TokenType::Rparen) {
+    if !assert_peek_token_and_next(parser, TokenType::Rparen) {
         missing_right_paren_error(parser);
         return None;
     }
@@ -257,7 +312,7 @@ fn parse_grouped_expression(parser: &mut Parser) -> Option<Expression> {
 fn parse_if_expression(parser: &mut Parser) -> Option<Expression> {
     let current_token = parser.current_token.clone();
 
-    if !assert_peek_token(parser, TokenType::Lparen) {
+    if !assert_peek_token_and_next(parser, TokenType::Lparen) {
         return None;
     }
 
@@ -275,11 +330,11 @@ fn parse_if_expression(parser: &mut Parser) -> Option<Expression> {
         }
     };
 
-    if !assert_peek_token(parser, TokenType::Rparen) {
+    if !assert_peek_token_and_next(parser, TokenType::Rparen) {
         return None;
     }
 
-    if !assert_peek_token(parser, TokenType::Lbrace) {
+    if !assert_peek_token_and_next(parser, TokenType::Lbrace) {
         return None;
     }
 
@@ -288,7 +343,7 @@ fn parse_if_expression(parser: &mut Parser) -> Option<Expression> {
     let alternative = if parser.peek_token.token_type == TokenType::Else {
         next_token(parser);
 
-        if !assert_peek_token(parser, TokenType::Lbrace) {
+        if !assert_peek_token_and_next(parser, TokenType::Lbrace) {
             return None;
         }
 
@@ -303,6 +358,68 @@ fn parse_if_expression(parser: &mut Parser) -> Option<Expression> {
         consequence: Box::new(consequence),
         alternative: Box::new(alternative),
     }))
+}
+
+fn parse_function_literal(parser: &mut Parser) -> Option<Expression> {
+    let current_token = parser.current_token.clone();
+
+    if !assert_peek_token_and_next(parser, TokenType::Lparen) {
+        return None;
+    }
+
+    next_token(parser);
+
+    let parameters = match parse_function_parameters(parser) {
+        Some(parameters) => parameters,
+        None => return None,
+    };
+
+    if !assert_peek_token_and_next(parser, TokenType::Lbrace) {
+        return None;
+    }
+
+    let body = parse_block_statement(parser);
+
+    Some(Expression::Function(ast::FunctionLiteral {
+        token: current_token,
+        parameters,
+        body,
+    }))
+}
+
+fn parse_function_parameters(parser: &mut Parser) -> Option<Vec<ast::Identifier>> {
+    let mut parameters = vec![];
+
+    if parser.current_token.token_type == TokenType::Rparen {
+        return Some(parameters);
+    }
+
+    if parser.current_token.token_type == TokenType::Ident {
+        parameters.push(Identifier {
+            token: parser.current_token.clone(),
+            value: parser.current_token.literal.clone(),
+        });
+    }
+
+    while parser.peek_token.token_type == TokenType::Comma {
+        next_token(parser);
+        next_token(parser);
+
+        if parser.current_token.token_type != TokenType::Ident {
+            return None;
+        }
+
+        parameters.push(Identifier {
+            token: parser.current_token.clone(),
+            value: parser.current_token.literal.clone(),
+        });
+    }
+
+    if !assert_peek_token_and_next(parser, TokenType::Rparen) {
+        return None;
+    }
+
+    return Some(parameters);
 }
 
 fn parse_block_statement(parser: &mut Parser) -> BlockStatement {
@@ -354,6 +471,7 @@ fn precedences_lookup(token_type: &TokenType) -> Precedence {
         TokenType::Minus => Precedence::Sum,
         TokenType::Asterisk => Precedence::Product,
         TokenType::Slash => Precedence::Product,
+        TokenType::Lparen => Precedence::Call,
         _ => Precedence::Lowest,
     }
 }
@@ -371,7 +489,7 @@ fn eat_expression(parser: &mut Parser) {
     }
 }
 
-fn assert_peek_token(parser: &mut Parser, token_type: TokenType) -> bool {
+fn assert_peek_token_and_next(parser: &mut Parser, token_type: TokenType) -> bool {
     if parser.peek_token.token_type == token_type {
         next_token(parser);
         return true;
@@ -818,6 +936,15 @@ mod test {
             ("2 / (5 + 5)", "(2 / (5 + 5))"),
             ("-(5 + 5)", "(-(5 + 5))"),
             ("!(true == true)", "(!(true == true))"),
+            ("a + add(b * c) + d", "((a + add((b * c))) + d)"),
+            (
+                "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))",
+                "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))",
+            ),
+            (
+                "add(a + b + c * d / f + g)",
+                "add((((a + b) + ((c * d) / f)) + g))",
+            ),
         ];
 
         tests.iter().for_each(|(test, expected)| {
@@ -936,13 +1063,165 @@ mod test {
             _ => panic!("Only expecting expression statements"),
         };
 
-        test_identifier(
+        test_identifier_from_expression(
             &branch_expression
                 .expression
                 .as_ref()
                 .expect("Expected expression to be Some"),
             expected,
         );
+    }
+
+    #[test]
+    fn test_function_literal() {
+        let input = "fn(x, y) { x + y; }";
+
+        let mut lexer = lexer::new(input);
+        let mut parser = new(&mut lexer);
+        let program = parse_program(&mut parser);
+        check_parser_errors(&parser);
+
+        if program.statements.len() != 1 {
+            panic!(
+                "program.statements does not contain 1 statement, got: {}",
+                program.statements.len()
+            );
+        }
+
+        let statement = match &program.statements[0] {
+            Statement::Expression(expression_statement) => expression_statement,
+            _ => panic!("Only expecting expression statements"),
+        };
+
+        let function = match statement.expression.as_ref() {
+            Some(Expression::Function(function)) => function,
+            _ => panic!("Only expecting function expressions"),
+        };
+
+        assert_eq!(
+            function.parameters.len(),
+            2,
+            "function.parameters does not contain 2 parameters, got: {}",
+            function.parameters.len()
+        );
+
+        test_identifier(&function.parameters[0], "x");
+        test_identifier(&function.parameters[1], "y");
+
+        assert_eq!(
+            function.body.statements.len(),
+            1,
+            "function.body.statements does not contain 1 statement, got: {}",
+            function.body.statements.len()
+        );
+
+        let body_expression = match &function.body.statements[0] {
+            Statement::Expression(expression) => expression,
+            _ => panic!("Only expecting expression statements"),
+        };
+
+        let body_expression = match &body_expression.expression {
+            Some(body_expression) => body_expression,
+            _ => panic!("Only expecting infix expressions"),
+        };
+
+        test_infix_expression(body_expression, "x", "+", "y");
+    }
+
+    #[test]
+    fn test_function_parameters() {
+        let input = [
+            ("fn() {};", vec![]),
+            ("fn(x) {};", vec!["x"]),
+            ("fn(x, y) {};", vec!["x", "y"]),
+            ("fn(x, y, z) {};", vec!["x", "y", "z"]),
+        ];
+
+        input.iter().for_each(|(input, expected)| {
+            let mut lexer = lexer::new(input);
+            let mut parser = new(&mut lexer);
+
+            let program = parse_program(&mut parser);
+            check_parser_errors(&parser);
+
+            if program.statements.len() != 1 {
+                panic!(
+                    "program.statements does not contain 1 statement, got: {}",
+                    program.statements.len()
+                );
+            }
+
+            let statement = match &program.statements[0] {
+                Statement::Expression(expression_statement) => expression_statement,
+                _ => panic!("Only expecting expression statements"),
+            };
+
+            let function = match statement.expression.as_ref() {
+                Some(Expression::Function(function)) => function,
+                _ => panic!("Only expecting function expressions"),
+            };
+
+            assert_eq!(
+                function.parameters.len(),
+                expected.len(),
+                "function.parameters does not contain {} parameters, got: {}",
+                expected.len(),
+                function.parameters.len()
+            );
+
+            expected.iter().enumerate().for_each(|(i, expected)| {
+                test_identifier(&function.parameters[i], expected);
+            });
+        });
+    }
+
+    #[test]
+    fn test_call_expression() {
+        let input = "add(1, x * y, a + b);";
+
+        let mut lexer = lexer::new(input);
+        let mut parser = new(&mut lexer);
+
+        let program = parse_program(&mut parser);
+        check_parser_errors(&parser);
+
+        if program.statements.len() != 1 {
+            panic!(
+                "program.statements does not contain 1 statement, got: {}",
+                program.statements.len()
+            );
+        }
+
+        let statement = match &program.statements[0] {
+            Statement::Expression(expression_statement) => expression_statement,
+            _ => panic!("Only expecting expression statements"),
+        };
+
+        let call = match statement.expression.as_ref() {
+            Some(Expression::Call(call)) => call,
+            _ => panic!("Only expecting call expressions"),
+        };
+
+        let call_function = match &*call.function {
+            Expression::Identifier(identifier) => identifier,
+            _ => panic!(
+                "Expected identifier, got: {:?}",
+                call.function.token_literal()
+            ),
+        };
+
+        test_identifier(&call_function, "add");
+
+        assert_eq!(
+            call.arguments.len(),
+            3,
+            "call.arguments does not contain 3 arguments, got: {}",
+            call.arguments.len()
+        );
+
+        test_integer_literal(&call.arguments[0], 1);
+        test_infix_expression(&call.arguments[1], "x", "*", "y");
+        test_infix_expression(&call.arguments[2], "a", "+", "b");
     }
 
     fn test_infix_expression(expression: &Expression, left: &str, operator: &str, right: &str) {
@@ -960,19 +1239,28 @@ mod test {
             operator_expression.operator, operator
         );
 
-        test_identifier(&operator_expression.left, left);
+        match operator_expression.left.as_ref() {
+            Expression::Identifier(identifier) => test_identifier(&identifier, left),
+            _ => panic!("Expected left to be identifier"),
+        }
+
         match &*operator_expression.right {
-            Some(right_exp) => test_identifier(&right_exp, right),
+            Some(Expression::Identifier(identifier)) => test_identifier(&identifier, right),
             None => panic!("Expected right to be Some"),
+            _ => panic!("Expected right to be identifier"),
         }
     }
 
-    fn test_identifier(expression: &Expression, expected: &str) {
+    fn test_identifier_from_expression(expression: &Expression, expected: &str) {
         let identifier = match expression {
             Expression::Identifier(identifier) => identifier,
             _ => panic!("Expected identifier, got: {:?}", expression.token_literal()),
         };
 
+        test_identifier(identifier, expected);
+    }
+
+    fn test_identifier(identifier: &Identifier, expected: &str) {
         assert_eq!(
             identifier.value, expected,
             "Expected value to be {}, got {}",

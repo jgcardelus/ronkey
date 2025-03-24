@@ -15,9 +15,11 @@ pub enum Expression {
     Identifier(Identifier),
     IntegerLiteral(IntegerLiteral),
     BooleanLiteral(BooleanLiteral),
-    If(IfExpression),
     Prefix(PrefixExpression),
     Infix(InfixExpression),
+    If(IfExpression),
+    Function(FunctionLiteral),
+    Call(CallExpression),
     Empty,
 }
 
@@ -30,6 +32,8 @@ impl Node for Expression {
             Expression::If(if_expression) => if_expression.token_literal(),
             Expression::Prefix(prefix_expression) => prefix_expression.token_literal(),
             Expression::Infix(infix_expression) => infix_expression.token_literal(),
+            Expression::Function(function_literal) => function_literal.token_literal(),
+            Expression::Call(call_expression) => call_expression.token_literal(),
             Expression::Empty => panic!("Empty expression should not be used"),
         }
     }
@@ -44,6 +48,8 @@ impl fmt::Display for Expression {
             Expression::If(if_expression) => if_expression.fmt(f),
             Expression::Prefix(prefix_expression) => prefix_expression.fmt(f),
             Expression::Infix(infix_expression) => infix_expression.fmt(f),
+            Expression::Function(function_expression) => function_expression.fmt(f),
+            Expression::Call(call_expression) => call_expression.fmt(f),
             Expression::Empty => panic!("Empty expression should not be used"),
         }
     }
@@ -315,6 +321,71 @@ impl fmt::Display for IfExpression {
     }
 }
 
+pub struct FunctionLiteral {
+    pub token: Token,
+    pub parameters: Vec<Identifier>,
+    pub body: BlockStatement,
+}
+
+impl Node for FunctionLiteral {
+    fn token_literal(&self) -> String {
+        return self.token.literal.clone();
+    }
+}
+
+impl fmt::Display for FunctionLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "fn(")?;
+        self.parameters
+            .iter()
+            .enumerate()
+            .map(|(i, parameter)| {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+                parameter.fmt(f)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        write!(f, ") ")?;
+        self.body.fmt(f)?;
+
+        return fmt::Result::Ok(());
+    }
+}
+
+pub struct CallExpression {
+    pub token: Token,
+    pub function: Box<Expression>,
+    pub arguments: Vec<Expression>,
+}
+
+impl Node for CallExpression {
+    fn token_literal(&self) -> String {
+        return self.token.literal.clone();
+    }
+}
+
+impl fmt::Display for CallExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}(", self.function)?;
+
+        self.arguments
+            .iter()
+            .enumerate()
+            .map(|(i, argument)| {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+                argument.fmt(f)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        write!(f, ")")?;
+
+        return fmt::Result::Ok(());
+    }
+}
 #[cfg(test)]
 mod test {
     use crate::tokens::TokenType;
