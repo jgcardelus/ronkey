@@ -20,7 +20,6 @@ pub enum Expression {
     If(IfExpression),
     Function(FunctionLiteral),
     Call(CallExpression),
-    Empty,
 }
 
 impl Node for Expression {
@@ -34,7 +33,6 @@ impl Node for Expression {
             Expression::Infix(infix_expression) => infix_expression.token_literal(),
             Expression::Function(function_literal) => function_literal.token_literal(),
             Expression::Call(call_expression) => call_expression.token_literal(),
-            Expression::Empty => panic!("Empty expression should not be used"),
         }
     }
 }
@@ -50,7 +48,6 @@ impl fmt::Display for Expression {
             Expression::Infix(infix_expression) => infix_expression.fmt(f),
             Expression::Function(function_expression) => function_expression.fmt(f),
             Expression::Call(call_expression) => call_expression.fmt(f),
-            Expression::Empty => panic!("Empty expression should not be used"),
         }
     }
 }

@@ -95,12 +95,25 @@ pub fn parse_let_statement(parser: &mut Parser) -> Option<ast::LetStatement> {
     if !assert_peek_token_and_next(parser, TokenType::Assign) {
         return None;
     }
-    eat_expression(parser);
+
+    next_token(parser);
+
+    let expression = match parse_expression(parser, Precedence::Lowest) {
+        Some(expression) => expression,
+        None => return None,
+    };
+
+    if !assert_peek_token_and_next(parser, TokenType::Semicolon) {
+        // WARN: In the book this if branch is different. Why should it be?
+        return None;
+    }
+
+    next_token(parser);
 
     Some(ast::LetStatement {
         token,
         name,
-        value: ast::Expression::Empty,
+        value: expression,
     })
 }
 
@@ -108,11 +121,22 @@ pub fn parse_return_statement(parser: &mut Parser) -> Option<ast::ReturnStatemen
     let token = parser.current_token.clone();
 
     next_token(parser);
-    eat_expression(parser);
+
+    let expression = match parse_expression(parser, Precedence::Lowest) {
+        Some(expression) => expression,
+        None => return None,
+    };
+
+    if !assert_peek_token_and_next(parser, TokenType::Semicolon) {
+        // WARN: In the book this if branch is different. Why should it be?
+        return None;
+    }
+
+    next_token(parser);
 
     Some(ast::ReturnStatement {
         token,
-        value: ast::Expression::Empty,
+        value: expression,
     })
 }
 
@@ -536,35 +560,35 @@ mod test {
 
     #[test]
     fn test_let_statements() {
-        let input = "
-				let x 5;
-				let y = 10;
-				let 123456;
-			";
+        let input = [
+            ("let x = 5;", "x", 5),
+            ("let y = 10;", "y", 10),
+            ("let foobar = 123456;", "foobar", 123456),
+        ];
 
-        let mut lexer = lexer::new(input);
-        let mut parser = new(&mut lexer);
-        let program = parse_program(&mut parser);
-
-        check_parser_errors(&parser);
-
-        assert_eq!(
-            program.statements.len(),
-            3,
-            "program.statements does not contain 3 statements, got: {}",
-            program.statements.len()
-        );
-
-        ["x", "y", "foobar"]
+        input
             .iter()
-            .enumerate()
-            .for_each(|(i, name)| {
-                let statement = &program.statements[i];
-                test_let_statement(statement, name.to_string());
+            .for_each(|(input, expected_identifier, expected_value)| {
+                let mut lexer = lexer::new(input);
+                let mut parser = new(&mut lexer);
+                let program = parse_program(&mut parser);
+
+                check_parser_errors(&parser);
+
+                assert_eq!(
+                    program.statements.len(),
+                    1,
+                    "program.statements does not contain 1 statements, got: {}",
+                    program.statements.len()
+                );
+
+                let statement = &program.statements[0];
+
+                test_let_statement(statement, expected_identifier, *expected_value);
             });
     }
 
-    fn test_let_statement(statement: &Statement, expected_identifier: String) {
+    fn test_let_statement(statement: &Statement, expected_identifier: &str, expected_value: i64) {
         assert_eq!(
             statement.token_literal(),
             "let",
@@ -584,39 +608,48 @@ mod test {
             expected_identifier,
             statement.name.token_literal()
         );
+
+        let value = match &statement.value {
+            Expression::IntegerLiteral(integer_literal) => integer_literal.value,
+            _ => panic!("Only expecting integer literals"),
+        };
+
+        assert_eq!(
+            value, expected_value,
+            "value is not {}, got {}",
+            expected_value, value
+        )
     }
 
     #[test]
     fn test_return_statements() {
-        let input = "
-				return 5;
-				return 10;
-				return 123456;
-			";
+        let input = [
+            ("return 5;", 5),
+            ("return 10;", 10),
+            ("return 123456;", 123456),
+        ];
 
-        let mut lexer = lexer::new(input);
-        let mut parser = new(&mut lexer);
-        let program = parse_program(&mut parser);
+        input.iter().for_each(|(input, expected_value)| {
+            let mut lexer = lexer::new(input);
+            let mut parser = new(&mut lexer);
+            let program = parse_program(&mut parser);
 
-        check_parser_errors(&parser);
+            check_parser_errors(&parser);
 
-        assert_eq!(
-            program.statements.len(),
-            3,
-            "program.statements does not contain 3 statements, got: {}",
-            program.statements.len()
-        );
+            assert_eq!(
+                program.statements.len(),
+                1,
+                "program.statements does not contain 1 statements, got: {}",
+                program.statements.len()
+            );
 
-        ["5", "10", "123456"]
-            .iter()
-            .enumerate()
-            .for_each(|(i, _value)| {
-                let statement = &program.statements[i];
-                test_return_statement(statement);
-            });
+            let statement = &program.statements[0];
+
+            test_return_statement(statement, *expected_value);
+        });
     }
 
-    fn test_return_statement(statement: &Statement) {
+    fn test_return_statement(statement: &Statement, expected_value: i64) {
         assert_eq!(
             statement.token_literal(),
             "return",
@@ -624,10 +657,21 @@ mod test {
             statement.token_literal()
         );
 
-        match statement {
+        let return_statement = match statement {
             Statement::Return(return_statement) => return_statement,
             _ => panic!("Only expecting return statements"),
         };
+
+        let value = match &return_statement.value {
+            Expression::IntegerLiteral(integer_literal) => integer_literal.value,
+            _ => panic!("Only expecting integer literals"),
+        };
+
+        assert_eq!(
+            value, expected_value,
+            "value is not {}, got {}",
+            expected_value, value
+        );
     }
 
     #[test]

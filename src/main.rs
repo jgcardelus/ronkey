@@ -1,15 +1,19 @@
 use std::io::Write;
 
 use lexer::next_token;
+use parser::parse_program;
 
 pub mod ast;
+pub mod eval;
 pub mod lexer;
+pub mod object;
 pub mod parser;
 pub mod tokens;
 
 enum ReplModes {
     Normal,
     Lexer,
+    Parser,
 }
 
 fn title(titles: &[&str]) {
@@ -41,7 +45,6 @@ fn main() {
         "",
         ">> Let's get Rusty!",
     ]);
-    println!();
 
     let mut mode = ReplModes::Normal;
 
@@ -50,6 +53,7 @@ fn main() {
         match mode {
             ReplModes::Normal => print!("ronkey> "),
             ReplModes::Lexer => print!("ronkey:lexer> "),
+            ReplModes::Parser => print!("ronkey:parser> "),
         }
         std::io::stdout().flush().unwrap();
         std::io::stdin().read_line(&mut input).unwrap();
@@ -57,6 +61,10 @@ fn main() {
         let input = match input.as_str().trim() {
             ":lexer" => {
                 mode = ReplModes::Lexer;
+                continue;
+            }
+            ":parser" => {
+                mode = ReplModes::Parser;
                 continue;
             }
             ":normal" => {
@@ -71,6 +79,7 @@ fn main() {
                 println!("Available commands:");
                 println!(":help - Isn't it obvious?");
                 println!(":lexer - Lex the input");
+                println!(":parser - Lex the input");
                 println!(":quit - Quit the REPL");
                 continue;
             }
@@ -83,8 +92,18 @@ fn main() {
 
         match mode {
             ReplModes::Normal => {
-                println!("Warning: Not implemented yet!\nType :help for more info");
-                println!("{}", input);
+                let mut lexer = lexer::new(input);
+                let mut parser = parser::new(&mut lexer);
+
+                let program = parse_program(&mut parser);
+
+                if parser.errors.len() > 0 {
+                    print_parser_errors(&parser);
+                    continue;
+                }
+
+                let jar = eval::eval_program(&program);
+                println!("{}", jar);
             }
             ReplModes::Lexer => {
                 let mut lexer = lexer::new(input);
@@ -96,6 +115,27 @@ fn main() {
                     token = next_token(&mut lexer);
                 }
             }
+            ReplModes::Parser => {
+                let mut lexer = lexer::new(input);
+                let mut parser = parser::new(&mut lexer);
+                let program = parse_program(&mut parser);
+
+                match parser.errors.len() > 0 {
+                    true => {
+                        print_parser_errors(&parser);
+                    }
+                    false => {
+                        println!("{}", program.to_string());
+                    }
+                }
+            }
         }
     }
+}
+
+fn print_parser_errors(parser: &parser::Parser) {
+    eprintln!("There was some monkey business going on: ");
+    parser.errors.iter().for_each(|error| {
+        eprintln!("\tError: {}", error);
+    });
 }
