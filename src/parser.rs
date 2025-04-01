@@ -108,8 +108,6 @@ pub fn parse_let_statement(parser: &mut Parser) -> Option<ast::LetStatement> {
         return None;
     }
 
-    next_token(parser);
-
     Some(ast::LetStatement {
         token,
         name,
@@ -131,8 +129,6 @@ pub fn parse_return_statement(parser: &mut Parser) -> Option<ast::ReturnStatemen
         // WARN: In the book this if branch is different. Why should it be?
         return None;
     }
-
-    next_token(parser);
 
     Some(ast::ReturnStatement {
         token,
@@ -497,19 +493,6 @@ fn precedences_lookup(token_type: &TokenType) -> Precedence {
         TokenType::Slash => Precedence::Product,
         TokenType::Lparen => Precedence::Call,
         _ => Precedence::Lowest,
-    }
-}
-
-/// This function is for prototyping only and shouldn't be used in production code.
-#[deprecated(
-    since = "0.1.0",
-    note = "This function simply skips tokens without proper parsing. Use a proper expression parser instead."
-)]
-fn eat_expression(parser: &mut Parser) {
-    while parser.current_token.token_type != TokenType::Semicolon
-        && parser.current_token.token_type != TokenType::Eof
-    {
-        next_token(parser);
     }
 }
 

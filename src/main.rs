@@ -1,14 +1,10 @@
-use std::io::Write;
-
-use lexer::next_token;
-use parser::parse_program;
-
-pub mod ast;
-pub mod eval;
-pub mod lexer;
-pub mod object;
-pub mod parser;
-pub mod tokens;
+use ronkey::{
+    environment, eval,
+    lexer::{self, next_token},
+    parser::{self, parse_program},
+    tokens,
+};
+use std::{cell, io::Write, rc};
 
 enum ReplModes {
     Normal,
@@ -47,6 +43,7 @@ fn main() {
     ]);
 
     let mut mode = ReplModes::Normal;
+    let environment = rc::Rc::new(cell::RefCell::new(environment::Environment::new()));
 
     loop {
         let mut input = String::new();
@@ -102,7 +99,7 @@ fn main() {
                     continue;
                 }
 
-                let jar = eval::eval_program(&program);
+                let jar = eval::eval_program(&program, environment.clone());
                 println!("{}", jar);
             }
             ReplModes::Lexer => {

@@ -5,12 +5,34 @@ pub trait Node: fmt::Display {
     fn token_literal(&self) -> String;
 }
 
+#[derive(Debug, Clone)]
 pub enum Statement {
     Let(LetStatement),
     Return(ReturnStatement),
     Expression(ExpressionStatement),
 }
 
+impl Node for Statement {
+    fn token_literal(&self) -> String {
+        match self {
+            Statement::Let(let_statement) => let_statement.token_literal(),
+            Statement::Return(return_statement) => return_statement.token_literal(),
+            Statement::Expression(expression_statement) => expression_statement.token_literal(),
+        }
+    }
+}
+
+impl fmt::Display for Statement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Statement::Let(let_statement) => let_statement.fmt(f),
+            Statement::Return(return_statement) => return_statement.fmt(f),
+            Statement::Expression(expression_statement) => expression_statement.fmt(f),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Expression {
     Identifier(Identifier),
     IntegerLiteral(IntegerLiteral),
@@ -52,26 +74,7 @@ impl fmt::Display for Expression {
     }
 }
 
-impl Node for Statement {
-    fn token_literal(&self) -> String {
-        match self {
-            Statement::Let(let_statement) => let_statement.token_literal(),
-            Statement::Return(return_statement) => return_statement.token_literal(),
-            Statement::Expression(expression_statement) => expression_statement.token_literal(),
-        }
-    }
-}
-
-impl fmt::Display for Statement {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Statement::Let(let_statement) => let_statement.fmt(f),
-            Statement::Return(return_statement) => return_statement.fmt(f),
-            Statement::Expression(expression_statement) => expression_statement.fmt(f),
-        }
-    }
-}
-
+#[derive(Debug)]
 pub struct Program {
     pub statements: Vec<Statement>,
 }
@@ -99,6 +102,7 @@ impl fmt::Display for Program {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct BlockStatement {
     pub token: Token,
     pub statements: Vec<Statement>,
@@ -127,6 +131,7 @@ impl fmt::Display for BlockStatement {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct LetStatement {
     pub token: Token,
     pub name: Identifier,
@@ -150,6 +155,7 @@ impl fmt::Display for LetStatement {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ReturnStatement {
     pub token: Token,
     pub value: Expression,
@@ -170,6 +176,7 @@ impl fmt::Display for ReturnStatement {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ExpressionStatement {
     pub token: Token,
     pub expression: Option<Expression>,
@@ -191,6 +198,7 @@ impl fmt::Display for ExpressionStatement {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Identifier {
     pub token: Token,
     pub value: String,
@@ -208,6 +216,7 @@ impl fmt::Display for Identifier {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct IntegerLiteral {
     pub token: Token,
     pub value: i64,
@@ -225,6 +234,7 @@ impl fmt::Display for IntegerLiteral {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct BooleanLiteral {
     pub token: Token,
     pub value: bool,
@@ -242,6 +252,7 @@ impl fmt::Display for BooleanLiteral {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct PrefixExpression {
     pub token: Token,
     pub operator: String,
@@ -263,6 +274,7 @@ impl fmt::Display for PrefixExpression {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct InfixExpression {
     pub token: Token,
     pub left: Box<Expression>,
@@ -291,6 +303,7 @@ impl fmt::Display for InfixExpression {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct IfExpression {
     pub token: Token,
     pub condition: Box<Expression>,
@@ -306,18 +319,21 @@ impl Node for IfExpression {
 
 impl fmt::Display for IfExpression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "if ")?;
+        write!(f, "if (")?;
         self.condition.fmt(f)?;
-        write!(f, " ")?;
+        write!(f, ") {{")?;
         self.consequence.fmt(f)?;
+        write!(f, "}}")?;
         if let Some(alternative) = &*self.alternative {
-            write!(f, " else ")?;
+            write!(f, " else {{")?;
             alternative.fmt(f)?;
+            write!(f, "}}")?;
         }
         return fmt::Result::Ok(());
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct FunctionLiteral {
     pub token: Token,
     pub parameters: Vec<Identifier>,
@@ -351,6 +367,7 @@ impl fmt::Display for FunctionLiteral {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct CallExpression {
     pub token: Token,
     pub function: Box<Expression>,
