@@ -4,7 +4,7 @@ use ronkey::{
     parser::{self, parse_program},
     tokens,
 };
-use std::{cell, io::Write, rc};
+use std::{io::Write, sync};
 
 enum ReplModes {
     Normal,
@@ -43,7 +43,7 @@ fn main() {
     ]);
 
     let mut mode = ReplModes::Normal;
-    let environment = rc::Rc::new(cell::RefCell::new(environment::Environment::new()));
+    let environment = sync::Arc::new(sync::Mutex::new(environment::Environment::new()));
 
     loop {
         let mut input = String::new();

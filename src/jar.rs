@@ -1,4 +1,4 @@
-use std::{cell, fmt, rc};
+use std::{cell, fmt, rc, sync};
 
 use crate::{ast, environment};
 
@@ -116,7 +116,7 @@ impl fmt::Display for NullObject {
 pub struct FunctionObject {
     pub parameters: Vec<ast::Identifier>,
     pub body: ast::BlockStatement,
-    pub environment: rc::Rc<cell::RefCell<environment::Environment>>,
+    pub environment: sync::Arc<sync::Mutex<environment::Environment>>,
 }
 
 impl Object for FunctionObject {

@@ -1,8 +1,6 @@
-use std::{cell, rc};
-
 use crate::{
     ast::{self, BlockStatement, Expression, Program, Statement},
-    environment::{Environment, EnvironmentRef},
+    environment::EnvironmentRef,
     jar::{
         self, BooleanObject, FunctionObject, IntegerObject, Jar, Object, PanicObject, RuntimeError,
     },
@@ -39,7 +37,8 @@ fn eval_statement(statement: &Statement, environment: EnvironmentRef) -> Jar {
             }
 
             environment
-                .borrow_mut()
+                .lock()
+                .unwrap()
                 .set(&let_statement.name.value, value);
 
             bind_null()
@@ -142,7 +141,8 @@ fn extend_function_environment(function: &FunctionObject, arguments: Vec<Jar>) -
 
     for (i, argument) in arguments.iter().enumerate() {
         environment
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .set(&function.parameters[i].value, argument.clone());
     }
 
@@ -166,7 +166,7 @@ fn eval_block_statement(block_statement: &BlockStatement, environment: Environme
 }
 
 fn eval_identifier_expression(identifier: &ast::Identifier, environment: EnvironmentRef) -> Jar {
-    match environment.borrow().get(&identifier.value) {
+    match environment.lock().unwrap().get(&identifier.value) {
         Some(jar) => jar.as_ref().clone(),
         None => panic_program(RuntimeError::IdentifierNotFound(identifier.value.clone())),
     }
@@ -340,6 +340,8 @@ fn unwrap_return_value(jar: Jar) -> Jar {
 
 #[cfg(test)]
 mod test {
+    use std::sync;
+
     use crate::{
         environment, lexer,
         parser::{self, parse_program},
@@ -611,7 +613,7 @@ mod test {
         let mut lexer = lexer::new(input);
         let mut parser = parser::new(&mut lexer);
         let program = parse_program(&mut parser);
-        let environment = rc::Rc::new(cell::RefCell::new(environment::Environment::new()));
+        let environment = sync::Arc::new(sync::Mutex::new(environment::Environment::new()));
         eval_program(&program, environment)
     }
 
