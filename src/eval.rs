@@ -1,6 +1,8 @@
+use std::sync;
+
 use crate::{
     ast::{self, BlockStatement, Expression, Program, Statement},
-    environment::EnvironmentRef,
+    environment::{self, EnvironmentRef},
     jar::{
         self, BooleanObject, FunctionObject, IntegerObject, Jar, Object, PanicObject, RuntimeError,
     },
@@ -137,7 +139,10 @@ fn eval_apply_function(function: &Jar, arguments: Vec<Jar>) -> Jar {
 }
 
 fn extend_function_environment(function: &FunctionObject, arguments: Vec<Jar>) -> EnvironmentRef {
-    let environment = function.environment.clone();
+    let mut environment = environment::Environment::new();
+    environment.set_parent(function.environment.clone());
+
+    let environment = sync::Arc::new(sync::Mutex::new(environment));
 
     for (i, argument) in arguments.iter().enumerate() {
         environment
@@ -431,6 +436,10 @@ mod test {
                 "if (1 < 2) { 10 } else { 20 }",
                 Jar::Integer(IntegerObject { value: 10 }),
             ),
+            (
+                "if (-1 < 2) { 10 } else { 20 }",
+                Jar::Integer(IntegerObject { value: 10 }),
+            ),
         ];
 
         inputs.iter().for_each(|(input, expected)| {
@@ -548,6 +557,7 @@ mod test {
             ("let add = fn(x, y) { x + y; }; add(5, 5);", 10),
             ("let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));", 20),
             ("fn(x) { x; }(5)", 5),
+            ("let fib = fn(n) { if (n < 2) { return n; } else { return fib(n - 1) + fib(n - 2); } }; fib(3);", 2),
         ];
 
         inputs.iter().for_each(|(input, expected)| {
