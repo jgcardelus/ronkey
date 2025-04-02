@@ -199,6 +199,8 @@ fn parse_infix(parser: &mut Parser, left: Expression) -> InfixOption {
         | TokenType::Less
         | TokenType::Greater
         | TokenType::Equals
+        | TokenType::GreaterEquals
+        | TokenType::LessEquals
         | TokenType::NotEquals => InfixOption::Some(parse_infix_expression(parser, left)),
         TokenType::Lparen => parse_call_expression(parser, left),
         _ => InfixOption::None(left),
@@ -487,6 +489,8 @@ fn precedences_lookup(token_type: &TokenType) -> Precedence {
         TokenType::NotEquals => Precedence::Equals,
         TokenType::Less => Precedence::LessGreater,
         TokenType::Greater => Precedence::LessGreater,
+        TokenType::GreaterEquals => Precedence::LessGreater,
+        TokenType::LessEquals => Precedence::LessGreater,
         TokenType::Plus => Precedence::Sum,
         TokenType::Minus => Precedence::Sum,
         TokenType::Asterisk => Precedence::Product,
@@ -863,6 +867,8 @@ mod test {
             ("5 / 5;", 5, "/", 5),
             ("5 > 5;", 5, ">", 5),
             ("5 < 5;", 5, "<", 5),
+            ("5 >= 5;", 5, ">=", 5),
+            ("5 <= 5;", 5, "<=", 5),
             ("5 == 5;", 5, "==", 5),
             ("5 != 5;", 5, "!=", 5),
         ];

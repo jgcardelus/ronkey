@@ -248,6 +248,8 @@ fn eval_integer_infix_expression(
         }),
         "<" => bind_wrap_bool(left.value < right.value),
         ">" => bind_wrap_bool(left.value > right.value),
+        ">=" => bind_wrap_bool(left.value >= right.value),
+        "<=" => bind_wrap_bool(left.value <= right.value),
         "==" => bind_wrap_bool(left.value == right.value),
         "!=" => bind_wrap_bool(left.value != right.value),
         _ => panic_program(RuntimeError::InfixUnknownOperator(
@@ -384,6 +386,8 @@ mod test {
             ("1 > 2", false),
             ("1 < 1", false),
             ("1 > 1", false),
+            ("1 <= 1", true),
+            ("1 >= 1", true),
             ("1 == 1", true),
             ("1 != 1", false),
             ("1 == 2", false),
